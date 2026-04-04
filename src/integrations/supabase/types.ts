@@ -406,7 +406,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_connector_secret: {
+        Args: { p_vault_key: string }
+        Returns: undefined
+      }
+      read_connector_secret_masked: {
+        Args: { p_vault_key: string }
+        Returns: string
+      }
+      store_connector_secret: {
+        Args: { p_name: string; p_secret: string }
+        Returns: string
+      }
+      update_connector_secret: {
+        Args: { p_secret: string; p_vault_key: string }
+        Returns: undefined
+      }
     }
     Enums: {
       activity_status: "success" | "error" | "timeout" | "rate_limited"
