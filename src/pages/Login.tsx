@@ -25,6 +25,11 @@ const Login = () => {
     setSubmitting(true);
 
     if (isSignUp) {
+      if (!email.toLowerCase().endsWith("@zuper.co")) {
+        toast.error("Only @zuper.co email addresses are allowed");
+        setSubmitting(false);
+        return;
+      }
       const { error } = await signUp(email, password, displayName || undefined);
       if (error) {
         toast.error(error.message);
