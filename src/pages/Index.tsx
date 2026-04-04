@@ -1,16 +1,15 @@
-// Update this page (the content is just a fallback if you fail to update the page)
-
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div
+      className="flex min-h-screen flex-col items-center justify-center gap-2"
+      style={{ backgroundColor: '#FFF8F0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    >
+      <h1 style={{ color: '#2D1E0E', fontSize: '2rem', fontWeight: 700 }}>
+        Zuper GTM Intelligence Cloud
+      </h1>
+      <p style={{ color: '#7A6B5A', fontSize: '1.125rem' }}>Setup in progress</p>
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
