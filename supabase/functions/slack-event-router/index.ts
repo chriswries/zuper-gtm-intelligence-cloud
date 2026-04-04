@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
     bot_name: matchedBot.name,
     slack_channel_id: channelId,
     slack_user_id: userId,
-    query_text: text,
+    query_text: queryText,
     status: "success",
     response_text: "Skeleton — processing not yet implemented",
   });
