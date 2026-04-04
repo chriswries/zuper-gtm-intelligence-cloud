@@ -91,7 +91,7 @@ export async function loadCredentials(
     }
   }
 
-  return { anthropicKey, hubspotKey };
+  return { anthropicKey, hubspotKey, inputCostPerMtok, outputCostPerMtok };
 }
 
 /**
