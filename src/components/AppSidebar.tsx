@@ -8,7 +8,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +24,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -41,9 +42,25 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
 
   const linkClass = "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent";
   const activeClass = "bg-accent text-primary font-medium";
+
+  const initials = profile?.display_name
+    ? profile.display_name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "??";
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -117,18 +134,24 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-              CR
+              {initials}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex flex-1 items-center justify-between min-w-0">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">Chris Ries</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {profile?.display_name ?? profile?.email ?? "Loading…"}
+                </p>
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
-                  admin
+                  {profile?.role ?? "admin"}
                 </Badge>
               </div>
-              <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
+              <button
+                onClick={handleLogout}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                title="Sign out"
+              >
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
