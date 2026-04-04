@@ -324,6 +324,24 @@ export type Database = {
           },
         ]
       }
+      processed_slack_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
       tool_definitions: {
         Row: {
           bot_id: string
@@ -406,9 +424,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_slack_events: { Args: never; Returns: undefined }
       delete_connector_secret: {
         Args: { p_vault_key: string }
         Returns: undefined
+      }
+      read_connector_secret_full: {
+        Args: { p_vault_key: string }
+        Returns: string
       }
       read_connector_secret_masked: {
         Args: { p_vault_key: string }
