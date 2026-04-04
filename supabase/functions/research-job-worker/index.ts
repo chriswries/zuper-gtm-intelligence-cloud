@@ -1,4 +1,4 @@
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.49.1/cors";
+import { corsHeaders } from "../_shared/cors.ts";
 import { createServiceClient, readVaultSecret } from "../_shared/supabase.ts";
 import { postMessage } from "../_shared/slack.ts";
 
