@@ -60,7 +60,7 @@ export async function runClaudeWithTools(opts: {
   let modelUsed = model;
 
   // Map model_type enum to Anthropic model IDs
-  const modelId = model === "opus" ? "claude-sonnet-4-20250514" : "claude-sonnet-4-20250514";
+  const modelId = model === "opus" ? "claude-opus-4-20250514" : "claude-sonnet-4-20250514";
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     await checkRateLimit(API_NAME);
