@@ -166,9 +166,9 @@ export async function runClaudeWithTools(opts: {
     });
   }
 
-  // Check for escalation patterns in response
+  // Check if Claude tagged the escalation user in its response
   const escalationNeeded = escalationUserId
-    ? finalText.includes("escalat") || finalText.includes("unable to") || finalText.includes("cannot determine")
+    ? finalText.includes(`<@${escalationUserId}>`)
     : false;
 
   return {
