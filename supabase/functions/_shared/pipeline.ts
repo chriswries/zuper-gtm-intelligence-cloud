@@ -125,8 +125,8 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
   const supabase = createServiceClient();
 
   try {
-    // Load credentials
-    const { anthropicKey, hubspotKey } = await loadCredentials(supabase, ctx.bot.handler_type);
+    // Load credentials + pricing
+    const { anthropicKey, hubspotKey, inputCostPerMtok, outputCostPerMtok } = await loadCredentials(supabase, ctx.bot.handler_type);
 
     if (!anthropicKey) {
       throw new Error("Anthropic API key not configured. Please set up an Anthropic connector.");
