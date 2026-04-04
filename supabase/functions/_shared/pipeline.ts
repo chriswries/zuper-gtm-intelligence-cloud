@@ -45,11 +45,13 @@ interface PipelineResult {
 export async function loadCredentials(
   supabase: ReturnType<typeof createServiceClient>,
   handlerType: string
-): Promise<{ anthropicKey: string | null; hubspotKey: string | null }> {
+): Promise<{ anthropicKey: string | null; hubspotKey: string | null; inputCostPerMtok: number; outputCostPerMtok: number }> {
   let anthropicKey: string | null = null;
   let hubspotKey: string | null = null;
+  let inputCostPerMtok = 3;
+  let outputCostPerMtok = 15;
 
-  // Load Anthropic key
+  // Load Anthropic key + pricing rates
   const { data: anthropicConnectors } = await supabase
     .from("connectors")
     .select("vault_key")
@@ -63,6 +65,8 @@ export async function loadCredentials(
       try {
         const secrets = JSON.parse(secretJson);
         anthropicKey = secrets.api_key || null;
+        if (secrets.input_cost_per_mtok != null) inputCostPerMtok = Number(secrets.input_cost_per_mtok);
+        if (secrets.output_cost_per_mtok != null) outputCostPerMtok = Number(secrets.output_cost_per_mtok);
       } catch { /* ignore */ }
     }
   }
