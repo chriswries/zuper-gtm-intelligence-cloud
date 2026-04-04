@@ -1,7 +1,16 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, Settings } from "lucide-react";
+import { useState } from "react";
+import { useBots } from "@/hooks/useBots";
+import { BotListPanel } from "@/components/bots/BotListPanel";
+import { BotDetailPanel } from "@/components/bots/BotDetailPanel";
+import { AddBotDialog } from "@/components/bots/AddBotDialog";
 
 const BotSettings = () => {
+  const { data: bots, isLoading } = useBots();
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+
+  const selectedBot = bots?.find((b) => b.id === selectedBotId) ?? null;
+
   return (
     <div className="space-y-6">
       <div>
@@ -9,36 +18,21 @@ const BotSettings = () => {
         <p className="text-sm text-muted-foreground mt-1">Configure and manage your Slack bots</p>
       </div>
 
-      <div className="grid grid-cols-12 gap-6 min-h-[500px]">
-        {/* Left: Bot list */}
+      <div className="grid grid-cols-12 gap-6 min-h-[600px]">
         <div className="col-span-4">
-          <Card className="h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Bots</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Bot className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm text-muted-foreground">No bots configured yet.</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">Create your first bot to get started.</p>
-              </div>
-            </CardContent>
-          </Card>
+          <BotListPanel
+            bots={bots ?? []}
+            selectedBotId={selectedBotId}
+            onSelect={setSelectedBotId}
+            onAddBot={() => setShowAddDialog(true)}
+          />
         </div>
-
-        {/* Right: Detail panel */}
         <div className="col-span-8">
-          <Card className="h-full">
-            <CardContent className="flex flex-col items-center justify-center h-full py-16 text-center">
-              <Settings className="h-10 w-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">Select a bot to configure</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                Choose a bot from the list or create a new one.
-              </p>
-            </CardContent>
-          </Card>
+          <BotDetailPanel bot={selectedBot} />
         </div>
       </div>
+
+      <AddBotDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
     </div>
   );
 };
