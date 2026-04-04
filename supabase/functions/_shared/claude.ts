@@ -60,7 +60,7 @@ export async function runClaudeWithTools(opts: {
   let modelUsed = model;
 
   // Map model_type enum to Anthropic model IDs
-  const modelId = model === "opus" ? "claude-sonnet-4-20250514" : "claude-sonnet-4-20250514";
+  const modelId = model === "opus" ? "claude-opus-4-20250514" : "claude-sonnet-4-20250514";
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     await checkRateLimit(API_NAME);
@@ -166,9 +166,9 @@ export async function runClaudeWithTools(opts: {
     });
   }
 
-  // Check for escalation patterns in response
+  // Check if Claude tagged the escalation user in its response
   const escalationNeeded = escalationUserId
-    ? finalText.includes("escalat") || finalText.includes("unable to") || finalText.includes("cannot determine")
+    ? finalText.includes(`<@${escalationUserId}>`)
     : false;
 
   return {
@@ -183,9 +183,14 @@ export async function runClaudeWithTools(opts: {
 }
 
 /**
- * Estimate cost in USD based on Claude Sonnet pricing.
- * Sonnet: $3/MTok input, $15/MTok output
+ * Estimate cost in USD based on pricing rates.
+ * Defaults: $3/MTok input, $15/MTok output (Sonnet pricing).
  */
-export function estimateCost(inputTokens: number, outputTokens: number): number {
-  return (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+export function estimateCost(
+  inputTokens: number,
+  outputTokens: number,
+  inputCostPerMtok: number = 3,
+  outputCostPerMtok: number = 15
+): number {
+  return (inputTokens * inputCostPerMtok + outputTokens * outputCostPerMtok) / 1_000_000;
 }

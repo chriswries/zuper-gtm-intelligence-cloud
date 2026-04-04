@@ -17,8 +17,8 @@ export const credentialFieldsByType: Record<ConnectorType, CredentialField[]> = 
   ],
   anthropic: [
     { key: "api_key", label: "API Key", type: "password", placeholder: "sk-ant-...", required: true },
-    { key: "input_rate", label: "Input Rate ($/1K tokens)", type: "text", placeholder: "0.003" },
-    { key: "output_rate", label: "Output Rate ($/1K tokens)", type: "text", placeholder: "0.015" },
+    { key: "input_cost_per_mtok", label: "Input Cost per MTok ($)", type: "text", placeholder: "3" },
+    { key: "output_cost_per_mtok", label: "Output Cost per MTok ($)", type: "text", placeholder: "15" },
   ],
   hubspot: [
     { key: "api_key", label: "Private App API Key", type: "password", placeholder: "pat-...", required: true },

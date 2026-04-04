@@ -45,11 +45,13 @@ interface PipelineResult {
 export async function loadCredentials(
   supabase: ReturnType<typeof createServiceClient>,
   handlerType: string
-): Promise<{ anthropicKey: string | null; hubspotKey: string | null }> {
+): Promise<{ anthropicKey: string | null; hubspotKey: string | null; inputCostPerMtok: number; outputCostPerMtok: number }> {
   let anthropicKey: string | null = null;
   let hubspotKey: string | null = null;
+  let inputCostPerMtok = 3;
+  let outputCostPerMtok = 15;
 
-  // Load Anthropic key
+  // Load Anthropic key + pricing rates
   const { data: anthropicConnectors } = await supabase
     .from("connectors")
     .select("vault_key")
@@ -63,6 +65,8 @@ export async function loadCredentials(
       try {
         const secrets = JSON.parse(secretJson);
         anthropicKey = secrets.api_key || null;
+        if (secrets.input_cost_per_mtok != null) inputCostPerMtok = Number(secrets.input_cost_per_mtok);
+        if (secrets.output_cost_per_mtok != null) outputCostPerMtok = Number(secrets.output_cost_per_mtok);
       } catch { /* ignore */ }
     }
   }
@@ -87,7 +91,7 @@ export async function loadCredentials(
     }
   }
 
-  return { anthropicKey, hubspotKey };
+  return { anthropicKey, hubspotKey, inputCostPerMtok, outputCostPerMtok };
 }
 
 /**
@@ -121,8 +125,8 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
   const supabase = createServiceClient();
 
   try {
-    // Load credentials
-    const { anthropicKey, hubspotKey } = await loadCredentials(supabase, ctx.bot.handler_type);
+    // Load credentials + pricing
+    const { anthropicKey, hubspotKey, inputCostPerMtok, outputCostPerMtok } = await loadCredentials(supabase, ctx.bot.handler_type);
 
     if (!anthropicKey) {
       throw new Error("Anthropic API key not configured. Please set up an Anthropic connector.");
@@ -162,18 +166,10 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
     });
 
     const durationMs = Date.now() - startTime;
-    const costUsd = estimateCost(result.input_tokens, result.output_tokens);
+    const costUsd = estimateCost(result.input_tokens, result.output_tokens, inputCostPerMtok, outputCostPerMtok);
 
-    // Format response for Slack (mrkdwn: double asterisks for bold)
-    let slackResponse = result.response_text;
-
-    // Add escalation mention if needed
-    if (result.escalation_needed && ctx.bot.escalation_user_id) {
-      slackResponse += `\n\ncc <@${ctx.bot.escalation_user_id}> — I wasn't able to fully answer this question.`;
-    }
-
-    // Post response in thread @mentioning user
-    const fullResponse = `<@${ctx.userId}> ${slackResponse}`;
+    // Post Claude's response as-is (escalation tags already included by Claude)
+    const fullResponse = `<@${ctx.userId}> ${result.response_text}`;
     await postMessage(ctx.botToken, ctx.channelId, fullResponse, ctx.threadTs);
 
     return {

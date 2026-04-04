@@ -227,18 +227,7 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
-  // For async bots, still log a stub entry
-  if (matchedBot.processing_mode === "async") {
-    await supabase.from("activity_log").insert({
-      bot_id: matchedBot.id,
-      bot_name: matchedBot.name,
-      slack_channel_id: channelId,
-      slack_user_id: userId,
-      query_text: queryText,
-      status: "success",
-      response_text: "Job queued for async processing",
-    });
-  }
+  // Async bots: activity logging handled by the worker — no stub entry here
 
   supabase.rpc("cleanup_old_slack_events").then(() => {}).catch(() => {});
   return new Response("OK", { status: 200, headers: corsHeaders });
