@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
       .from("jobs")
       .insert({
         bot_id: matchedBot.id,
-        query_text: text,
+        query_text: queryText,
         slack_channel_id: channelId,
         slack_user_id: userId,
         slack_thread_ts: messageTs,
