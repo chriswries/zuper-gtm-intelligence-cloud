@@ -1,29 +1,13 @@
 // SPIKE 1 - Async invocation: HTTP fetch to research-job-worker URL.
-//   The router calls fetch() to invoke the worker. We do NOT await the response
-//   body — just fire-and-forget after getting a 200. This avoids blocking the
-//   3-second Slack response window. The worker runs independently.
-//
-// SPIKE 2 - Vault access: Service-role Supabase client calls read_connector_secret_full()
-//   RPC function (SECURITY DEFINER). This returns the full decrypted secret from
-//   vault.decrypted_secrets without exposing the vault schema directly.
-//
-// SPIKE 3 - Event deduplication: DB row with unique constraint on event_id in
-//   processed_slack_events table. INSERT with ON CONFLICT DO NOTHING — if insert
-//   returns no rows, the event was already processed. Old entries cleaned up by
-//   cleanup_old_slack_events() (1 hour TTL). Chosen over in-memory because edge
-//   functions are stateless across invocations.
-//
-// SPIKE 4 - Edge Function timeout: Supabase Edge Functions have a 60-second wall
-//   clock limit. The router must respond to Slack within 3 seconds; async work is
-//   delegated to the worker. The worker has 60s for its processing.
-//
-// SPIKE 5 - Slack signature verification: HMAC-SHA256 using Web Crypto API
-//   (crypto.subtle.importKey + crypto.subtle.sign). Verified compatible with Deno
-//   runtime. Timing-safe comparison via XOR to prevent timing attacks.
+// SPIKE 2 - Vault access: Service-role Supabase client calls read_connector_secret_full() RPC.
+// SPIKE 3 - Event deduplication: DB row with unique constraint on event_id.
+// SPIKE 4 - Edge Function timeout: Router responds quickly; async work delegated to worker.
+// SPIKE 5 - Slack signature verification: HMAC-SHA256 with Web Crypto API.
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { createServiceClient, readVaultSecret } from "../_shared/supabase.ts";
 import { verifySlackSignature, postAcknowledgment, postMessage } from "../_shared/slack.ts";
+import { runBotPipeline } from "../_shared/pipeline.ts";
 
 const DEFAULT_ACK_MESSAGE = "Got it — looking that up now...";
 
@@ -31,7 +15,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
@@ -53,8 +36,7 @@ Deno.serve(async (req) => {
 
   const supabase = createServiceClient();
 
-  // --- Get Slack signing secret from Vault ---
-  // Find the Slack connector to get its vault_key
+  // --- Get Slack signing secret + bot token from Vault ---
   const { data: slackConnectors } = await supabase
     .from("connectors")
     .select("vault_key")
@@ -125,7 +107,6 @@ Deno.serve(async (req) => {
   if (event.bot_id) {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
-  // Filter thread replies (thread_ts != ts means it's a reply in a thread)
   if (event.thread_ts && event.thread_ts !== event.ts) {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
@@ -146,9 +127,8 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
-  // Find matching bot by trigger pattern
   let matchedBot = null;
-  let queryText = text; // cleaned query with trigger stripped
+  let queryText = text;
   for (const bot of bots) {
     const pattern = bot.trigger_pattern;
     if (!pattern) continue;
@@ -156,7 +136,6 @@ Deno.serve(async (req) => {
     if (bot.trigger_type === "prefix") {
       if (text.toLowerCase().startsWith(pattern.toLowerCase())) {
         matchedBot = bot;
-        // Strip prefix and trim leading whitespace + common punctuation (: - —)
         queryText = text.slice(pattern.length).replace(/^[\s:\-—]+/, "");
         break;
       }
@@ -196,7 +175,6 @@ Deno.serve(async (req) => {
       .single();
 
     if (job) {
-      // Fire-and-forget invocation of the worker
       const workerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/research-job-worker`;
       fetch(workerUrl, {
         method: "POST",
@@ -207,31 +185,61 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ job_id: job.id }),
       }).catch((err) => console.error("Worker invocation failed:", err));
     }
-  } else {
-    // Sync processing — placeholder for now
-    if (botToken) {
-      await postMessage(
-        botToken,
-        channelId,
-        "Bot matched but processing not yet implemented.",
-        messageTs
-      );
-    }
+  } else if (botToken) {
+    // Sync processing — run the full pipeline inline
+    const pipelineResult = await runBotPipeline({
+      bot: {
+        id: matchedBot.id,
+        name: matchedBot.name,
+        system_prompt: matchedBot.system_prompt,
+        model: matchedBot.model,
+        handler_type: matchedBot.handler_type,
+        escalation_user_id: matchedBot.escalation_user_id,
+      },
+      queryText,
+      channelId,
+      userId,
+      threadTs: messageTs,
+      botToken,
+    });
+
+    // Log activity
+    await supabase.from("activity_log").insert({
+      bot_id: matchedBot.id,
+      bot_name: matchedBot.name,
+      slack_channel_id: channelId,
+      slack_user_id: userId,
+      query_text: queryText,
+      status: pipelineResult.status,
+      response_text: pipelineResult.response_text || null,
+      error_message: pipelineResult.error_message || null,
+      duration_ms: pipelineResult.duration_ms,
+      model_used: pipelineResult.model_used,
+      input_tokens: pipelineResult.input_tokens,
+      output_tokens: pipelineResult.output_tokens,
+      estimated_cost_usd: pipelineResult.estimated_cost_usd,
+      tool_calls: pipelineResult.tool_calls,
+    });
+
+    // Cleanup old dedup entries
+    supabase.rpc("cleanup_old_slack_events").then(() => {}).catch(() => {});
+
+    return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
-  // --- Stub activity_log entry ---
-  await supabase.from("activity_log").insert({
-    bot_id: matchedBot.id,
-    bot_name: matchedBot.name,
-    slack_channel_id: channelId,
-    slack_user_id: userId,
-    query_text: queryText,
-    status: "success",
-    response_text: "Skeleton — processing not yet implemented",
-  });
+  // For async bots, still log a stub entry
+  if (matchedBot.processing_mode === "async") {
+    await supabase.from("activity_log").insert({
+      bot_id: matchedBot.id,
+      bot_name: matchedBot.name,
+      slack_channel_id: channelId,
+      slack_user_id: userId,
+      query_text: queryText,
+      status: "success",
+      response_text: "Job queued for async processing",
+    });
+  }
 
-  // Periodically clean up old dedup entries
   supabase.rpc("cleanup_old_slack_events").then(() => {}).catch(() => {});
-
   return new Response("OK", { status: 200, headers: corsHeaders });
 });
