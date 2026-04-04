@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
 
   // Find matching bot by trigger pattern
   let matchedBot = null;
+  let queryText = text; // cleaned query with trigger stripped
   for (const bot of bots) {
     const pattern = bot.trigger_pattern;
     if (!pattern) continue;
@@ -155,11 +156,14 @@ Deno.serve(async (req) => {
     if (bot.trigger_type === "prefix") {
       if (text.toLowerCase().startsWith(pattern.toLowerCase())) {
         matchedBot = bot;
+        // Strip prefix and trim leading whitespace + common punctuation (: - —)
+        queryText = text.slice(pattern.length).replace(/^[\s:\-—]+/, "");
         break;
       }
     } else if (bot.trigger_type === "emoji") {
       if (text.startsWith(pattern)) {
         matchedBot = bot;
+        queryText = text.slice(pattern.length).trimStart();
         break;
       }
     }
