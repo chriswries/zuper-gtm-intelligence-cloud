@@ -41,6 +41,12 @@ async function hubspotFetch(
 
     const res = await fetch(`${HUBSPOT_API}${path}`, opts);
 
+    // Propagate auth errors immediately (don't retry)
+    if ((res.status === 401 || res.status === 403) && attempt === 0) {
+      const data = await res.json().catch(() => ({ error: "Auth failure" }));
+      return { ok: false, status: res.status, data };
+    }
+
     if (res.status === 429 && attempt < maxRetries) {
       const delay = baseDelay * Math.pow(2, attempt);
       console.warn(`HubSpot 429, retry ${attempt + 1} after ${delay}ms`);

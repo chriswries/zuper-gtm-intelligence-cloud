@@ -109,7 +109,10 @@ export async function runClaudeWithTools(opts: {
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+      const prefix = response.status === 401 || response.status === 403
+        ? "Anthropic authentication error"
+        : "Anthropic API error";
+      throw new Error(`${prefix} ${response.status}: ${errText}`);
     }
 
     const data = await response.json();

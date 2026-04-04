@@ -40,6 +40,37 @@ interface PipelineResult {
 }
 
 /**
+ * Detect if an error is an authentication/key failure for a specific API.
+ */
+function isAuthError(errorMessage: string): boolean {
+  const authPatterns = [
+    "401", "403", "authentication", "unauthorized", "invalid api key",
+    "invalid_api_key", "api key", "forbidden", "not_authenticated",
+  ];
+  const lower = errorMessage.toLowerCase();
+  return authPatterns.some((p) => lower.includes(p));
+}
+
+/**
+ * Update a connector's status to 'error' when credentials fail.
+ */
+async function markConnectorError(
+  supabase: ReturnType<typeof createServiceClient>,
+  connectorType: string
+): Promise<void> {
+  try {
+    await supabase
+      .from("connectors")
+      .update({ status: "error" as const })
+      .eq("connector_type", connectorType)
+      .eq("status", "configured");
+    console.warn(`Marked ${connectorType} connector(s) as error`);
+  } catch (err) {
+    console.error(`Failed to update connector status for ${connectorType}:`, err);
+  }
+}
+
+/**
  * Load credentials needed for a bot's handler type from Vault.
  */
 export async function loadCredentials(
@@ -186,13 +217,31 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
     const durationMs = Date.now() - startTime;
     const errorMessage = err instanceof Error ? err.message : String(err);
 
-    // Check if rate limited
+    // Check error categories
     const isRateLimited = errorMessage.includes("rate limit") || errorMessage.includes("429");
+    const isAnthropicAuthError = isAuthError(errorMessage) && errorMessage.toLowerCase().includes("anthropic");
+    const isHubSpotAuthError = isAuthError(errorMessage) && (errorMessage.toLowerCase().includes("hubspot") || errorMessage.toLowerCase().includes("hubapi"));
 
-    // Post error message in thread
-    const userMessage = isRateLimited
-      ? `<@${ctx.userId}> I'm currently experiencing high demand and need to pause briefly. Please try again in a moment.`
-      : `<@${ctx.userId}> ⚠️ I encountered an error processing your request. The team has been notified.`;
+    // Update connector status on auth failures
+    if (isAnthropicAuthError) {
+      await markConnectorError(supabase, "anthropic");
+    }
+    if (isHubSpotAuthError || (ctx.bot.handler_type === "hubspot" && isAuthError(errorMessage) && !isAnthropicAuthError)) {
+      await markConnectorError(supabase, "hubspot");
+    }
+
+    // Build user-friendly Slack message
+    let userMessage: string;
+    if (isRateLimited) {
+      userMessage = `<@${ctx.userId}> I'm currently experiencing high demand and need to pause briefly. Please try again in a moment.`;
+    } else if (isAnthropicAuthError) {
+      const escalationTag = ctx.bot.escalation_user_id ? ` <@${ctx.bot.escalation_user_id}>` : "";
+      userMessage = `<@${ctx.userId}> ⚠️ There's a configuration issue with the AI service. An admin has been notified.${escalationTag}`;
+    } else if (isHubSpotAuthError || (ctx.bot.handler_type === "hubspot" && isAuthError(errorMessage))) {
+      userMessage = `<@${ctx.userId}> ⚠️ There's a connection issue with HubSpot. An admin has been notified — please try again later.`;
+    } else {
+      userMessage = `<@${ctx.userId}> ⚠️ I encountered an error processing your request. The team has been notified.`;
+    }
 
     await postMessage(ctx.botToken, ctx.channelId, userMessage, ctx.threadTs);
 
