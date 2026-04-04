@@ -166,18 +166,10 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
     });
 
     const durationMs = Date.now() - startTime;
-    const costUsd = estimateCost(result.input_tokens, result.output_tokens);
+    const costUsd = estimateCost(result.input_tokens, result.output_tokens, inputCostPerMtok, outputCostPerMtok);
 
-    // Format response for Slack (mrkdwn: double asterisks for bold)
-    let slackResponse = result.response_text;
-
-    // Add escalation mention if needed
-    if (result.escalation_needed && ctx.bot.escalation_user_id) {
-      slackResponse += `\n\ncc <@${ctx.bot.escalation_user_id}> — I wasn't able to fully answer this question.`;
-    }
-
-    // Post response in thread @mentioning user
-    const fullResponse = `<@${ctx.userId}> ${slackResponse}`;
+    // Post Claude's response as-is (escalation tags already included by Claude)
+    const fullResponse = `<@${ctx.userId}> ${result.response_text}`;
     await postMessage(ctx.botToken, ctx.channelId, fullResponse, ctx.threadTs);
 
     return {

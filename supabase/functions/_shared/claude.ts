@@ -183,9 +183,14 @@ export async function runClaudeWithTools(opts: {
 }
 
 /**
- * Estimate cost in USD based on Claude Sonnet pricing.
- * Sonnet: $3/MTok input, $15/MTok output
+ * Estimate cost in USD based on pricing rates.
+ * Defaults: $3/MTok input, $15/MTok output (Sonnet pricing).
  */
-export function estimateCost(inputTokens: number, outputTokens: number): number {
-  return (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+export function estimateCost(
+  inputTokens: number,
+  outputTokens: number,
+  inputCostPerMtok: number = 3,
+  outputCostPerMtok: number = 15
+): number {
+  return (inputTokens * inputCostPerMtok + outputTokens * outputCostPerMtok) / 1_000_000;
 }
