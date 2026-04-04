@@ -19,6 +19,16 @@ async function throttle(channelId: string): Promise<void> {
   lastPostTime[channelId] = Date.now();
 }
 
+const SLACK_MAX_TEXT_LENGTH = 39_000; // Slack limit is 40k; leave margin
+
+/**
+ * Truncate text to fit Slack's message length limit.
+ */
+function truncateForSlack(text: string): string {
+  if (text.length <= SLACK_MAX_TEXT_LENGTH) return text;
+  return text.substring(0, SLACK_MAX_TEXT_LENGTH) + "\n\n_…response truncated due to length._";
+}
+
 export async function postMessage(
   botToken: string,
   channel: string,
@@ -27,7 +37,7 @@ export async function postMessage(
 ): Promise<{ ok: boolean; error?: string; ts?: string }> {
   await throttle(channel);
 
-  const body: Record<string, string> = { channel, text };
+  const body: Record<string, string> = { channel, text: truncateForSlack(text) };
   if (threadTs) body.thread_ts = threadTs;
 
   const res = await fetch(`${SLACK_API_BASE}/chat.postMessage`, {
