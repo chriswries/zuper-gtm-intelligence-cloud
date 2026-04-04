@@ -1,12 +1,12 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createServiceClient, readVaultSecret } from "../_shared/supabase.ts";
 import { postMessage } from "../_shared/slack.ts";
+import { runBotPipeline } from "../_shared/pipeline.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
 
   const supabase = createServiceClient();
 
-  // Read the job
+  // Read the job with bot config
   const { data: job, error: jobError } = await supabase
     .from("jobs")
     .select("*, bots(*)")
@@ -60,41 +60,60 @@ Deno.serve(async (req) => {
     }
   }
 
+  const bot = job.bots;
+
   try {
-    // Placeholder: simulate processing
-    await new Promise((r) => setTimeout(r, 2000));
+    if (!bot) throw new Error("Bot not found for job");
+    if (!botToken) throw new Error("Slack bot token not configured");
 
-    // Post placeholder response
-    if (botToken && job.slack_channel_id && job.slack_thread_ts) {
-      await postMessage(
-        botToken,
-        job.slack_channel_id,
-        "Research processing not yet implemented.",
-        job.slack_thread_ts
-      );
-    }
+    // Run the full pipeline
+    const result = await runBotPipeline({
+      bot: {
+        id: bot.id,
+        name: bot.name,
+        system_prompt: bot.system_prompt,
+        model: bot.model,
+        handler_type: bot.handler_type,
+        escalation_user_id: bot.escalation_user_id,
+      },
+      queryText: job.query_text || "",
+      channelId: job.slack_channel_id || "",
+      userId: job.slack_user_id || "",
+      threadTs: job.slack_thread_ts || "",
+      botToken,
+      jobId: job_id,
+    });
 
-    // Mark completed
+    // Mark completed or failed
     await supabase
       .from("jobs")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update({
+        status: result.status === "success" ? "completed" : "failed",
+        completed_at: new Date().toISOString(),
+        error_message: result.error_message || null,
+      })
       .eq("id", job_id);
 
     // Log activity
-    const bot = job.bots;
     await supabase.from("activity_log").insert({
       bot_id: job.bot_id,
       bot_name: bot?.name || "Unknown",
       slack_channel_id: job.slack_channel_id,
       slack_user_id: job.slack_user_id,
       query_text: job.query_text,
-      status: "success",
-      response_text: "Worker skeleton — processing not yet implemented",
+      status: result.status,
+      response_text: result.response_text || null,
+      error_message: result.error_message || null,
+      duration_ms: result.duration_ms,
+      model_used: result.model_used,
+      input_tokens: result.input_tokens,
+      output_tokens: result.output_tokens,
+      estimated_cost_usd: result.estimated_cost_usd,
+      tool_calls: result.tool_calls,
     });
   } catch (err) {
     console.error("Worker error:", err);
 
-    // Mark failed
     await supabase
       .from("jobs")
       .update({
@@ -104,7 +123,6 @@ Deno.serve(async (req) => {
       })
       .eq("id", job_id);
 
-    // Post error in thread
     if (botToken && job.slack_channel_id && job.slack_thread_ts) {
       await postMessage(
         botToken,
@@ -114,10 +132,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Log error activity
     await supabase.from("activity_log").insert({
       bot_id: job.bot_id,
-      bot_name: job.bots?.name || "Unknown",
+      bot_name: bot?.name || "Unknown",
       slack_channel_id: job.slack_channel_id,
       slack_user_id: job.slack_user_id,
       query_text: job.query_text,
