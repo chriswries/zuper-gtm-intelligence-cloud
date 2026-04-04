@@ -31,14 +31,14 @@ export function useToolMutations() {
     before: Record<string, unknown> | null,
     after: Record<string, unknown> | null
   ) => {
-    await supabase.from("audit_log").insert({
+    await supabase.from("audit_log").insert([{
       action_type: actionType,
       entity_type: "tool_definition",
       entity_id: entityId,
       user_id: user?.id ?? null,
-      before_state: before,
-      after_state: after,
-    });
+      before_state: before as unknown as import("@/integrations/supabase/types").Json,
+      after_state: after as unknown as import("@/integrations/supabase/types").Json,
+    }]);
   };
 
   const createTool = useMutation({

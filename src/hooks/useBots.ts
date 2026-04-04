@@ -31,14 +31,14 @@ export function useBotMutations() {
     beforeState: Record<string, unknown> | null,
     afterState: Record<string, unknown> | null
   ) => {
-    await supabase.from("audit_log").insert({
+    await supabase.from("audit_log").insert([{
       action_type: actionType,
       entity_type: "bot",
       entity_id: entityId,
       user_id: user?.id ?? null,
-      before_state: beforeState,
-      after_state: afterState,
-    });
+      before_state: beforeState as unknown as import("@/integrations/supabase/types").Json,
+      after_state: afterState as unknown as import("@/integrations/supabase/types").Json,
+    }]);
   };
 
   const createBot = useMutation({
