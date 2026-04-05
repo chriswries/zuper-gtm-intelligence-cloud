@@ -1,13 +1,34 @@
 import { useState } from "react";
 import { useBots } from "@/hooks/useBots";
+import { useConnectorsFull } from "@/hooks/useConnectorsFull";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { BotListPanel } from "@/components/bots/BotListPanel";
 import { BotDetailPanel } from "@/components/bots/BotDetailPanel";
 import { AddBotDialog } from "@/components/bots/AddBotDialog";
 
 const BotSettings = () => {
   const { data: bots, isLoading } = useBots();
+  const { data: connectors } = useConnectorsFull();
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+
+  // Fetch all bot_connectors to build a map
+  const { data: allBotConnectors } = useQuery({
+    queryKey: ["all_bot_connectors"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bot_connectors").select("bot_id, connector_id");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const botConnectorMap = new Map<string, string[]>();
+  allBotConnectors?.forEach((bc) => {
+    const list = botConnectorMap.get(bc.bot_id) ?? [];
+    list.push(bc.connector_id);
+    botConnectorMap.set(bc.bot_id, list);
+  });
 
   const selectedBot = bots?.find((b) => b.id === selectedBotId) ?? null;
 
@@ -25,6 +46,8 @@ const BotSettings = () => {
             selectedBotId={selectedBotId}
             onSelect={setSelectedBotId}
             onAddBot={() => setShowAddDialog(true)}
+            botConnectorMap={botConnectorMap}
+            connectors={connectors}
           />
         </div>
         <div className="col-span-8">

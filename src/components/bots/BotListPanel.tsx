@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Bot, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { deriveBotHealth, healthColors, healthLabels } from "@/lib/botHealth";
 import type { Bot as BotType } from "@/hooks/useBots";
+import type { Connector } from "@/hooks/useConnectorsFull";
 
 const modelBadgeColors: Record<string, string> = {
   sonnet: "bg-blue-100 text-blue-800 border-blue-200",
@@ -24,9 +24,11 @@ interface BotListPanelProps {
   selectedBotId: string | null;
   onSelect: (id: string) => void;
   onAddBot: () => void;
+  botConnectorMap?: Map<string, string[]>;
+  connectors?: Connector[];
 }
 
-export function BotListPanel({ bots, selectedBotId, onSelect, onAddBot }: BotListPanelProps) {
+export function BotListPanel({ bots, selectedBotId, onSelect, onAddBot, botConnectorMap, connectors }: BotListPanelProps) {
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -45,7 +47,8 @@ export function BotListPanel({ bots, selectedBotId, onSelect, onAddBot }: BotLis
         ) : (
           <div className="divide-y divide-border">
             {bots.map((bot) => {
-              const health = deriveBotHealth(bot);
+              const cids = botConnectorMap?.get(bot.id);
+              const health = deriveBotHealth(bot, cids, connectors);
               const isSelected = bot.id === selectedBotId;
               return (
                 <button
