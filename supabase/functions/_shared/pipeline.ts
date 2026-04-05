@@ -7,6 +7,7 @@ import { createServiceClient, readVaultSecret } from "./supabase.ts";
 import { postMessage } from "./slack.ts";
 import { runClaudeWithTools, estimateCost, type ToolDefinition, type ToolResult } from "./claude.ts";
 import { executeHubSpotTools } from "./hubspot.ts";
+import { ANTHROPIC_WEB_SEARCH_TOOL } from "./web-search.ts";
 
 interface BotConfig {
   id: string;
@@ -149,6 +150,38 @@ export async function loadToolDefinitions(
 }
 
 /**
+ * Split a long research response into summary + detailed sections.
+ * Looks for "---" or "## " markers to split, otherwise posts as single message.
+ */
+function splitResearchResponse(text: string): { summary: string; detail: string } | null {
+  // Look for a separator like "---" or a section break
+  const separators = ["\n---\n", "\n\n---\n\n", "\n## Detailed"];
+  for (const sep of separators) {
+    const idx = text.indexOf(sep);
+    if (idx > 100) { // Only split if summary portion is meaningful
+      return {
+        summary: text.substring(0, idx).trim(),
+        detail: text.substring(idx + sep.length).trim(),
+      };
+    }
+  }
+
+  // If text is long enough, split at ~30% mark on a paragraph boundary
+  if (text.length > 3000) {
+    const splitPoint = Math.floor(text.length * 0.3);
+    const nextParagraph = text.indexOf("\n\n", splitPoint);
+    if (nextParagraph > 0 && nextParagraph < text.length * 0.5) {
+      return {
+        summary: text.substring(0, nextParagraph).trim(),
+        detail: text.substring(nextParagraph + 2).trim(),
+      };
+    }
+  }
+
+  return null; // Single message
+}
+
+/**
  * Run the full bot processing pipeline.
  */
 export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResult> {
@@ -170,6 +203,10 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
     // Load tool definitions
     const tools = await loadToolDefinitions(supabase, ctx.bot.id);
 
+    // Determine if we should use Anthropic's built-in web search
+    const useBuiltInWebSearch = ctx.bot.handler_type === "web_search";
+    const serverTools = useBuiltInWebSearch ? [ANTHROPIC_WEB_SEARCH_TOOL] : undefined;
+
     // Build tool executor based on handler type
     const executeTools = async (
       toolCalls: Array<{ id: string; name: string; input: Record<string, unknown> }>
@@ -185,7 +222,9 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
       }));
     };
 
-    // Run Claude with tools
+    // Run Claude with tools (higher iteration limit for research bot with many web searches)
+    const maxIterations = useBuiltInWebSearch ? 25 : 10;
+
     const result = await runClaudeWithTools({
       apiKey: anthropicKey,
       model: ctx.bot.model,
@@ -193,15 +232,33 @@ export async function runBotPipeline(ctx: PipelineContext): Promise<PipelineResu
       userMessage: ctx.queryText,
       tools,
       executeTools,
+      maxIterations,
       escalationUserId: ctx.bot.escalation_user_id,
+      serverTools,
     });
 
     const durationMs = Date.now() - startTime;
     const costUsd = estimateCost(result.input_tokens, result.output_tokens, inputCostPerMtok, outputCostPerMtok);
 
-    // Post Claude's response as-is (escalation tags already included by Claude)
-    const fullResponse = `<@${ctx.userId}> ${result.response_text}`;
-    await postMessage(ctx.botToken, ctx.channelId, fullResponse, ctx.threadTs);
+    // Post response — research bots get split into summary + detail
+    if (useBuiltInWebSearch) {
+      const split = splitResearchResponse(result.response_text);
+      if (split) {
+        // Post summary first
+        await postMessage(ctx.botToken, ctx.channelId, split.summary, ctx.threadTs);
+        // Post detailed reply with @mention
+        const detailWithMention = `<@${ctx.userId}> ${split.detail}`;
+        await postMessage(ctx.botToken, ctx.channelId, detailWithMention, ctx.threadTs);
+      } else {
+        // Single message with @mention
+        const fullResponse = `<@${ctx.userId}> ${result.response_text}`;
+        await postMessage(ctx.botToken, ctx.channelId, fullResponse, ctx.threadTs);
+      }
+    } else {
+      // Standard single reply with @mention
+      const fullResponse = `<@${ctx.userId}> ${result.response_text}`;
+      await postMessage(ctx.botToken, ctx.channelId, fullResponse, ctx.threadTs);
+    }
 
     return {
       response_text: result.response_text,

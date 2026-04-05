@@ -44,8 +44,10 @@ export async function runClaudeWithTools(opts: {
   executeTools: (toolCalls: Array<{ id: string; name: string; input: Record<string, unknown> }>) => Promise<ToolResult[]>;
   maxIterations?: number;
   escalationUserId?: string | null;
+  /** Anthropic built-in server-side tools (e.g. web_search_20250305) */
+  serverTools?: Array<Record<string, unknown>>;
 }): Promise<ClaudeResponse> {
-  const { apiKey, model, systemPrompt, userMessage, tools, executeTools, escalationUserId } = opts;
+  const { apiKey, model, systemPrompt, userMessage, tools, executeTools, escalationUserId, serverTools } = opts;
   const maxIterations = opts.maxIterations ?? 10;
 
   const messages: Array<{ role: string; content: unknown }> = [
@@ -72,12 +74,20 @@ export async function runClaudeWithTools(opts: {
       messages,
     };
 
+    // Build tools array: user-defined + server-side (built-in) tools
+    const allTools: unknown[] = [];
     if (tools.length > 0) {
-      body.tools = tools.map((t) => ({
+      allTools.push(...tools.map((t) => ({
         name: t.name,
         description: t.description,
         input_schema: t.input_schema,
-      }));
+      })));
+    }
+    if (serverTools && serverTools.length > 0) {
+      allTools.push(...serverTools);
+    }
+    if (allTools.length > 0) {
+      body.tools = allTools;
     }
 
     let response: Response;
@@ -130,6 +140,13 @@ export async function runClaudeWithTools(opts: {
         textBlocks.push(block.text);
       } else if (block.type === "tool_use") {
         toolUseBlocks.push({ id: block.id, name: block.name, input: block.input });
+      } else if (block.type === "web_search_tool_result") {
+        // Anthropic built-in web search — track for logging
+        allToolCalls.push({
+          name: "web_search",
+          input: { query: block.search_query || "" },
+          result: `${(block.search_results || []).length} results`,
+        });
       }
     }
 
