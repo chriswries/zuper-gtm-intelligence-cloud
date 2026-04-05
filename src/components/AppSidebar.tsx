@@ -72,7 +72,7 @@ export function AppSidebar() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
                 Z
               </div>
-              <span className="text-sm font-semibold text-foreground">Zuper GTM Cloud</span>
+              <span className="text-sm font-semibold text-foreground">Zuper GTM Intelligence Cloud</span>
             </div>
           )}
           {collapsed && (
