@@ -1,55 +1,59 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plug } from "lucide-react";
-
-const sections = [
-  {
-    title: "Shared Connectors",
-    description: "Available to all bots",
-    items: ["Slack", "Anthropic Claude"],
-  },
-  {
-    title: "Bot-Specific Connectors",
-    description: "Assigned per bot",
-    items: ["HubSpot CRM"],
-  },
-];
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { useConnectorsFull } from "@/hooks/useConnectorsFull";
+import { ConnectorCard } from "@/components/connectors/ConnectorCard";
+import { AddConnectorDialog } from "@/components/connectors/AddConnectorDialog";
 
 const Connectors = () => {
+  const { data: connectors, isLoading } = useConnectorsFull();
+  const [showAdd, setShowAdd] = useState(false);
+
+  const shared = connectors?.filter((c) => c.is_shared) ?? [];
+  const botSpecific = connectors?.filter((c) => !c.is_shared) ?? [];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Connectors</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage API connections and credentials</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Connectors</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage API connections and credentials</p>
+        </div>
+        <Button onClick={() => setShowAdd(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Connector
+        </Button>
       </div>
 
-      {sections.map((section) => (
-        <div key={section.title} className="space-y-3">
+      {/* Shared Connectors */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-medium text-foreground">Shared Connectors</h2>
+          <p className="text-xs text-muted-foreground">Available to all bots</p>
+        </div>
+        <div className="space-y-2">
+          {shared.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No shared connectors configured yet.</p>
+          ) : (
+            shared.map((c) => <ConnectorCard key={c.id} connector={c} />)
+          )}
+        </div>
+      </div>
+
+      {/* Bot-Specific Connectors */}
+      {botSpecific.length > 0 && (
+        <div className="space-y-3">
           <div>
-            <h2 className="text-lg font-medium text-foreground">{section.title}</h2>
-            <p className="text-xs text-muted-foreground">{section.description}</p>
+            <h2 className="text-lg font-medium text-foreground">Bot-Specific Connectors</h2>
+            <p className="text-xs text-muted-foreground">Assigned per bot</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {section.items.map((name) => (
-              <Card key={name}>
-                <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
-                    <Plug className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-inactive" />
-                    <span className="text-xs text-muted-foreground">Not configured</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="space-y-2">
+            {botSpecific.map((c) => <ConnectorCard key={c.id} connector={c} />)}
           </div>
         </div>
-      ))}
+      )}
+
+      <AddConnectorDialog open={showAdd} onOpenChange={setShowAdd} />
     </div>
   );
 };
