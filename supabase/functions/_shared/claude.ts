@@ -44,8 +44,10 @@ export async function runClaudeWithTools(opts: {
   executeTools: (toolCalls: Array<{ id: string; name: string; input: Record<string, unknown> }>) => Promise<ToolResult[]>;
   maxIterations?: number;
   escalationUserId?: string | null;
+  /** Anthropic built-in server-side tools (e.g. web_search_20250305) */
+  serverTools?: Array<Record<string, unknown>>;
 }): Promise<ClaudeResponse> {
-  const { apiKey, model, systemPrompt, userMessage, tools, executeTools, escalationUserId } = opts;
+  const { apiKey, model, systemPrompt, userMessage, tools, executeTools, escalationUserId, serverTools } = opts;
   const maxIterations = opts.maxIterations ?? 10;
 
   const messages: Array<{ role: string; content: unknown }> = [
