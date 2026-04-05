@@ -140,6 +140,13 @@ export async function runClaudeWithTools(opts: {
         textBlocks.push(block.text);
       } else if (block.type === "tool_use") {
         toolUseBlocks.push({ id: block.id, name: block.name, input: block.input });
+      } else if (block.type === "web_search_tool_result") {
+        // Anthropic built-in web search — track for logging
+        allToolCalls.push({
+          name: "web_search",
+          input: { query: block.search_query || "" },
+          result: `${(block.search_results || []).length} results`,
+        });
       }
     }
 
