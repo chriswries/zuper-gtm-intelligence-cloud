@@ -74,12 +74,20 @@ export async function runClaudeWithTools(opts: {
       messages,
     };
 
+    // Build tools array: user-defined + server-side (built-in) tools
+    const allTools: unknown[] = [];
     if (tools.length > 0) {
-      body.tools = tools.map((t) => ({
+      allTools.push(...tools.map((t) => ({
         name: t.name,
         description: t.description,
         input_schema: t.input_schema,
-      }));
+      })));
+    }
+    if (serverTools && serverTools.length > 0) {
+      allTools.push(...serverTools);
+    }
+    if (allTools.length > 0) {
+      body.tools = allTools;
     }
 
     let response: Response;
