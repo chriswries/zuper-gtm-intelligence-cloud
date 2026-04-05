@@ -28,7 +28,7 @@ export function useActivityLog(filters: ActivityFilters) {
         query = query.eq("bot_id", filters.botId);
       }
       if (filters.status && filters.status.length > 0) {
-        query = query.in("status", filters.status);
+        query = query.in("status", filters.status as ("success" | "error" | "timeout" | "rate_limited")[]);
       }
       if (filters.dateFrom) {
         query = query.gte("created_at", filters.dateFrom);
